@@ -1590,19 +1590,79 @@
       return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    async function fetchJson(url, options) {
-      const response = await fetch(url, options);
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (err) {
-        data = { parseError: true, raw: text.slice(0, 4000) };
+    function proxyJsonUrl(url) {
+      return 'https://r.jina.ai/http://' + String(url || '').replace(/^https?:\/\//i, '');
+    }
+
+    function shouldProxyFirst() {
+      return location.protocol === 'file:' || /github\.io$/i.test(location.hostname) || location.hostname === '';
+    }
+
+    function extractJsonPayload(text) {
+      const raw = String(text || '').trim();
+      if (!raw) return raw;
+      if (raw.startsWith('{') || raw.startsWith('[')) return raw;
+      const marker = 'Markdown Content:';
+      const idx = raw.indexOf(marker);
+      if (idx >= 0) {
+        const content = raw.slice(idx + marker.length).trim();
+        const contentStart = content.search(/[\[{]/);
+        if (contentStart >= 0) return content.slice(contentStart).trim();
+        return content;
       }
-      if (!response.ok) {
-        throw new Error('HTTP ' + response.status + ' op ' + url + '\n' + toJson(data));
+      return raw;
+    }
+
+    async function fetchJson(url, options, fallbackUrl) {
+      const directUrl = String(url || '');
+      const proxiedUrl = proxyJsonUrl(directUrl);
+      const attemptUrls = shouldProxyFirst() ? [proxiedUrl, directUrl] : [directUrl, proxiedUrl];
+      let lastError = null;
+
+      for (const attemptUrl of attemptUrls) {
+        if (!attemptUrl) continue;
+        try {
+          const response = await fetch(attemptUrl, options);
+          const text = await response.text();
+          const jsonText = extractJsonPayload(text);
+          let data;
+          try {
+            data = JSON.parse(jsonText);
+          } catch (err) {
+            data = { parseError: true, raw: jsonText.slice(0, 4000) };
+          }
+          if (!response.ok && attemptUrl === directUrl) {
+            throw new Error('HTTP ' + response.status + ' op ' + directUrl + '\n' + toJson(data));
+          }
+          if (!response.ok && attemptUrl !== directUrl) {
+            throw new Error('HTTP ' + response.status + ' op proxy voor ' + directUrl + '\n' + toJson(data));
+          }
+          return data;
+        } catch (err) {
+          lastError = err;
+        }
       }
-      return data;
+      if (fallbackUrl) {
+        try {
+          const fallbackResponse = await fetch(fallbackUrl, options);
+          const fallbackText = await fallbackResponse.text();
+          const fallbackJsonText = extractJsonPayload(fallbackText);
+          let fallbackData;
+          try {
+            fallbackData = JSON.parse(fallbackJsonText);
+          } catch (err) {
+            fallbackData = { parseError: true, raw: fallbackJsonText.slice(0, 4000) };
+          }
+          if (!fallbackResponse.ok) {
+            throw new Error('HTTP ' + fallbackResponse.status + ' op fallback ' + fallbackUrl + '\n' + toJson(fallbackData));
+          }
+          return fallbackData;
+        } catch (fallbackErr) {
+          lastError = fallbackErr;
+        }
+      }
+
+      throw new Error('Fetch mislukt voor ' + directUrl + '\n' + String(lastError && lastError.message ? lastError.message : lastError));
     }
 
     async function prime3DAddressDrop() {
@@ -1676,8 +1736,11 @@
       const parts = extractAddressParts(addr);
       session.street = parts.street;
       session.houseNumber = parts.houseNumber;
-      session.parkingUrl = 'https://parkeerverbod.antwerpen.be/features/parkingBanIntake?from_date=' + encodeURIComponent(checkDateStr);
-      session.geocodeUrl = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(addr + ', Belgium') + '&format=json&limit=1&addressdetails=1';
+      session.parkingUrlDirect = 'https://parkeerverbod.antwerpen.be/features/parkingBanIntake?from_date=' + encodeURIComponent(checkDateStr);
+      session.geocodeUrlDirect = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(addr + ', Belgium') + '&format=json&limit=1&addressdetails=1';
+      session.parkingUrl = session.parkingUrlDirect;
+      session.geocodeUrl = session.geocodeUrlDirect;
+      session.parkingCacheUrl = 'parking-ban-cache.json';
       session.prepared = true;
       session.step = 0;
       parkingRaw.textContent = 'Klaar voor stap 2.';
@@ -1717,7 +1780,7 @@
       highlightStep(2, 'Stap 3/6: live parkeerverbod JSON ophalen.', ['worker', 'banApi'], [{ path: 'p_worker_ban', color: 'blue' }, { path: 'p_ban_worker', color: 'green', delay: 900 }], 3);
       setLesson(3, 6, 'We tonen nu de parkeerdata langzaam, regel per regel.', 'Let op: eerst URL en aantallen, daarna voorbeeldvelden.');
       parkingRaw.textContent = 'Laden van parkeerverboddata...';
-      const parkingJson = await fetchJson(session.parkingUrl, { method: 'GET' });
+      const parkingJson = await fetchJson(session.parkingUrl, { method: 'GET' }, session.parkingCacheUrl);
       session.parkingJson = parkingJson;
       session.parkingFeatures = Array.isArray(parkingJson.features) ? parkingJson.features : [];
       placeSigns(session.parkingFeatures.slice(0, 16).map(f => {
@@ -1738,7 +1801,7 @@
         type: 'normal'
       })));
       await revealJson(parkingRaw, {
-        url: session.parkingUrl,
+        url: session.parkingUrlDirect,
         totalFeatures: session.parkingFeatures.length,
         firstFeatureUsedFields: session.parkingFeatures[0] ? {
           geometryType: session.parkingFeatures[0].geometry?.type || null,
@@ -1773,7 +1836,7 @@
       session.geocodeJson = geocodeJson;
       session.geo = Array.isArray(geocodeJson) && geocodeJson.length ? geocodeJson[0] : null;
       await revealJson(geocodeRaw, {
-        url: session.geocodeUrl,
+        url: session.geocodeUrlDirect,
         resultCount: Array.isArray(geocodeJson) ? geocodeJson.length : 0,
         topResultUsedFields: session.geo ? {
           display_name: session.geo.display_name,
@@ -1845,8 +1908,8 @@
           checkTime: session.checkTimeStr
         },
         urls: {
-          parking: session.parkingUrl,
-          geocode: session.geocodeUrl
+          parking: session.parkingUrlDirect,
+          geocode: session.geocodeUrlDirect
         },
         counts: {
           totalFeatures: session.parkingFeatures.length,
