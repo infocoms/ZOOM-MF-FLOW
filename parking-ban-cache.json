@@ -1,0 +1,81 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [4.4146581, 51.2191216]
+      },
+      "properties": {
+        "street": "Kipdorpvest",
+        "address": "Kipdorpvest 21 - 20, 2000 Antwerpen",
+        "dateFrom": "2026-06-01",
+        "dateUntil": "2026-07-10",
+        "timeFrom": "07:00",
+        "timeUntil": "17:00",
+        "streetNumberFrom": "21",
+        "streetNumberTo": "20",
+        "onlyOnWeekdays": false,
+        "entireDay": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [4.41665, 51.2193]
+      },
+      "properties": {
+        "street": "Kipdorpvest",
+        "address": "Kipdorpvest 46 - 45, 2000 Antwerpen",
+        "dateFrom": "2026-06-01",
+        "dateUntil": "2026-07-10",
+        "timeFrom": "07:00",
+        "timeUntil": "17:00",
+        "streetNumberFrom": "46",
+        "streetNumberTo": "45",
+        "onlyOnWeekdays": false,
+        "entireDay": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [4.4178, 51.2197]
+      },
+      "properties": {
+        "street": "Kipdorpvest",
+        "address": "Kipdorpvest 45 - 41, 2000 Antwerpen",
+        "dateFrom": "2026-06-01",
+        "dateUntil": "2026-07-10",
+        "timeFrom": "07:00",
+        "timeUntil": "17:00",
+        "streetNumberFrom": "45",
+        "streetNumberTo": "41",
+        "onlyOnWeekdays": false,
+        "entireDay": false
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [4.41355, 51.21885]
+      },
+      "properties": {
+        "street": "Kipdorpvest",
+        "address": "Kipdorpvest 42 - 40, 2000 Antwerpen",
+        "dateFrom": "2026-06-01",
+        "dateUntil": "2026-07-10",
+        "timeFrom": "07:00",
+        "timeUntil": "17:00",
+        "streetNumberFrom": "42",
+        "streetNumberTo": "40",
+        "onlyOnWeekdays": false,
+        "entireDay": false
+      }
+    }
+  ]
+}
